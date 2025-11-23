@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>收货地址管理</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "PingFang SC", sans-serif;
+        }
+        body {
+            background-color: #f5f5f5;
+            color: #333;
+            font-size: 14px;
+            line-height: 1.5;
+            margin: 0 auto;
+            min-height: 100vh;
+            position: relative;
+            min-width: 320px;
+            padding: 0;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            background-color: #fff;
+            border-bottom: 1px solid #eee;
+            margin-top: 0;
+        }
+        .header .back {
+            font-size: 24px;
+            text-decoration: none;
+            color: #333;
+        }
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+        }
+        .header .empty {
+            width: 24px;
+        }
+        .main-content {
+            background-color: #fff;
+            padding: 0px 20px; /* 关键修改：顶部 padding 从 20px 改为 15px，减少标题与添加按钮的距离 */
+            margin-bottom: 70px;
+        }
+        .message {
+            text-align: center;
+            padding: 10px 16px;
+            margin: 0 0 5px 0; /* 关键修改：底部 margin 从 16px 改为 12px，让提示框更紧凑 */
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        /* 添加新地址卡片 - 关键修改：去掉顶部 margin，减少与标题的距离 */
+        .add-address-card {
+            background-color: #f9f9f9;
+            border: 1px dashed #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 0 0 25px 0; /* 顶部 margin 从 16px 改为 0，底部 margin 从 16px 改为 12px */
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .add-address-card:hover {
+            border-color: #007bff;
+            background-color: #f0f7ff;
+        }
+        .add-address-card button {
+            background: none;
+            border: none;
+            color: #007bff;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 10px 0;
+        }
+        .add-address-card button::before {
+            content: "+";
+            font-size: 18px;
+            margin-right: 8px;
+            font-weight: bold;
+        }
+        .form-container {
+            background-color: #f9f9f9;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px; /* 关键修改：底部 margin 从 16px 改为 12px */
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            display: none;
+        }
+        .form-container h2 {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: 600;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px 15px;
+            margin-bottom: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 14px;
+            transition: border 0.3s ease;
+        }
+        input:focus, select:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+        /* 地址列表 - 关键修改：为列表容器添加底部内边距 */
+        #addressList {
+            display: flex;
+            flex-direction: column;
+            gap: 15px; /* 地址项之间的间距 */
+            padding-bottom: 50px; /* 关键修改：增加列表底部与模块边框的距离 */
+        }
+        .address-item {
+            background-color: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .address-item:hover {
+            border-color: #007bff;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+        }
+        .address-info p {
+            margin: 4px 0;
+            font-size: 14px;
+            color: #555;
+            line-height: 1.5;
+        }
+        .address-info p strong {
+            color: #333;
+            font-weight: 500;
+        }
+        .default-tag {
+            display: inline-block;
+            background-color: #28a745;
+            color: white;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-top: 5px;
+            font-weight: bold;
+        }
+        .address-actions {
+            position: absolute;
+            right: 15px;
+            top: 15px;
+        }
+        .address-actions button {
+            background: none;
+            border: none;
+            padding: 6px 10px;
+            margin-left: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            border-radius: 4px;
+            transition: background-color 0.2s ease;
+        }
+        .edit-btn {
+            color: #007bff;
+        }
+        .edit-btn:hover {
+            background-color: rgba(0, 123, 255, 0.1);
+        }
+        .delete-btn {
+            color: #dc3545;
+        }
+        .delete-btn:hover {
+            background-color: rgba(220, 53, 69, 0.1);
+        }
+        .button-group {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+        #submitBtn, #cancelBtn {
+            width: 48%;
+            padding: 12px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        #submitBtn {
+            background-color: #28a745;
+            color: white;
+        }
+        #submitBtn:hover {
+            background-color: #218838;
+        }
+        #cancelBtn {
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        #cancelBtn:hover {
+            background-color: #e2e6ea;
+        }
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60px;
+            background: #fff;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 999;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+        }
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #999;
+            text-decoration: none;
+            font-size: 11px;
+            flex: 1;
+            height: 100%;
+            justify-content: center;
+        }
+        .nav-item.active {
+            color: #007bff;
+        }
+        .nav-item i {
+            font-size: 22px;
+            margin-bottom: 4px;
+        }
+        .icon-home::before { content: "🏠"; }
+        .icon-order::before { content: "📝"; }
+        .icon-user::before { content: "👤"; }
+
+        @media (min-width: 768px) {
+            .main-content {
+                padding: 0px 40px; /* 关键修改：顶部 padding 从 25px 改为 20px */
+            }
+            .address-item {
+                padding: 20px;
+            }
+            .address-info p {
+                font-size: 15px;
+            }
+            input, select {
+                padding: 14px 15px;
+                font-size: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 头部 -->
+    <div class="header">
+        <a href="javascript:goBack()" class="back">&lt;</a>
+        <h1>收货地址管理</h1>
+        <div class="empty"></div>
+    </div>
+
+    <div class="main-content">
+        <div id="message" class="message"></div>
+
+        <!-- 添加新地址卡片 -->
+        <div class="add-address-card" onclick="showAddForm()">
+            <button type="button">添加新地址</button>
+        </div>
+        
+        <!-- 地址表单 -->
+        <div class="form-container" id="addressForm">
+            <h2 id="form-title">添加新地址</h2>
+            <input type="text" id="name" placeholder="收货人姓名" required>
+            <input type="tel" id="phone" placeholder="联系电话" required>
+            <input type="text" id="region" placeholder="地区（省市区）" required>
+            <input type="text" id="detail" placeholder="详细地址（街道、门牌号等）" required>
+            <select id="isDefault">
+                <option value="true">设为默认地址</option>
+                <option value="false">非默认地址</option>
+            </select>
+            <div class="button-group">
+                <button id="submitBtn" onclick="handleSubmit()">保存地址</button>
+                <button id="cancelBtn" onclick="hideForm()">取消</button>
+            </div>
+        </div>
+        
+        <!-- 地址列表 -->
+        <div id="addressList"></div>
+    </div>
+
+    <!-- 底部导航 -->
+    <div class="bottom-nav">
+        <a href="index.html" class="nav-item">
+            <i class="icon-home"></i>
+            <span>首页</span>
+        </a>
+        <a href="orders.html" class="nav-item">
+            <i class="icon-order"></i>
+            <span>订单</span>
+        </a>
+        <a href="profile.html" class="nav-item active">
+            <i class="icon-user"></i>
+            <span>我的</span>
+        </a>
+    </div>
+
+    <script>
+        // 所有 JS 逻辑完全不变
+        const SUPABASE_URL = "https://gfvzqdydcjynxseiswwh.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdmdnpxZHlkY2p5bnhzZWlzd3doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NDI0MDksImV4cCI6MjA3ODMxODQwOX0.n0gaMxtldCFEw0PkH_NKyN6J_e1vKJ5s8GwsKOGq0Q0";
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let currentUserId = null;
+        let editingAddressId = null;
+        const STORAGE_KEY = 'persistent_auth_session';
+
+        function goBack() {
+            window.history.back();
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const savedSession = localStorage.getItem(STORAGE_KEY);
+                if (savedSession) {
+                    const sessionData = JSON.parse(savedSession);
+                    if (sessionData.expiresAt > new Date().getTime()) {
+                        currentUserId = sessionData.userId;
+                        await loadAddresses();
+                        return;
+                    }
+                }
+
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session && session.user) {
+                    currentUserId = session.user.id;
+                    await loadAddresses();
+                } else {
+                    showMessage('请先登录', 'error');
+                    setTimeout(() => {
+                        window.location.href = 'profile.html';
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error('初始化失败:', error);
+                showMessage('初始化失败，请刷新页面重试', 'error');
+            }
+        });
+
+        async function loadAddresses() {
+            try {
+                const { data, error } = await supabase
+                   .from('addresses')
+                   .select('*')
+                   .eq('user_id', currentUserId);
+
+                if (error) throw error;
+
+                const addressList = document.getElementById('addressList');
+                addressList.innerHTML = '';
+
+                if (data.length === 0) {
+                    addressList.innerHTML = '<div style="text-align: center; padding: 30px 0; color: #999; font-size: 14px;">暂无收货地址</div>';
+                    return;
+                }
+
+                data.forEach(address => {
+                    const addressItem = document.createElement('div');
+                    addressItem.className = 'address-item';
+                    addressItem.innerHTML = `
+                        <div class="address-info">
+                            <p><strong>${address.name}</strong> ${address.phone}</p>
+                            <p>${address.region} ${address.detail}</p>
+                            ${address.is_default ? '<span class="default-tag">默认地址</span>' : ''}
+                        </div>
+                        <div class="address-actions">
+                            <button class="edit-btn" onclick="editAddress(${address.id})">编辑</button>
+                            <button class="delete-btn" onclick="deleteAddress(${address.id})">删除</button>
+                        </div>
+                    `;
+                    addressList.appendChild(addressItem);
+                });
+            } catch (error) {
+                console.error('加载地址失败:', error);
+                showMessage('加载地址失败，请稍后重试', 'error');
+            }
+        }
+
+        async function handleSubmit() {
+            try {
+                const name = document.getElementById('name').value.trim();
+                const phone = document.getElementById('phone').value.trim();
+                const region = document.getElementById('region').value.trim();
+                const detail = document.getElementById('detail').value.trim();
+                const isDefault = document.getElementById('isDefault').value === 'true';
+
+                if (!name) return showMessage('请填写收货人姓名', 'error');
+                if (!phone || !/^1[3-9]\d{9}$/.test(phone)) return showMessage('请填写正确的11位手机号', 'error');
+                if (!region) return showMessage('请填写地区（省市区）', 'error');
+                if (!detail) return showMessage('请填写详细地址', 'error');
+
+                if (isDefault) {
+                    await supabase
+                       .from('addresses')
+                       .update({ is_default: false })
+                       .eq('user_id', currentUserId);
+                }
+
+                if (editingAddressId) {
+                    const { error } = await supabase
+                       .from('addresses')
+                       .update({
+                            name,
+                            phone,
+                            region,
+                            detail,
+                            is_default: isDefault
+                        })
+                       .eq('id', editingAddressId);
+
+                    if (error) throw error;
+                    showMessage('地址编辑成功', 'success');
+                } else {
+                    const { error } = await supabase
+                       .from('addresses')
+                       .insert([{
+                            user_id: currentUserId,
+                            name,
+                            phone,
+                            region,
+                            detail,
+                            is_default: isDefault
+                        }]);
+
+                    if (error) throw error;
+                    showMessage('地址添加成功', 'success');
+                }
+
+                clearForm();
+                hideForm();
+                await loadAddresses();
+            } catch (error) {
+                console.error('提交地址失败:', error);
+                showMessage('操作失败，请稍后重试', 'error');
+            }
+        }
+
+        async function editAddress(id) {
+            try {
+                const { data, error } = await supabase
+                   .from('addresses')
+                   .select('*')
+                   .eq('id', id)
+                   .single();
+
+                if (error) throw error;
+
+                document.getElementById('form-title').textContent = '编辑地址';
+                document.getElementById('name').value = data.name;
+                document.getElementById('phone').value = data.phone;
+                document.getElementById('region').value = data.region;
+                document.getElementById('detail').value = data.detail;
+                document.getElementById('isDefault').value = data.is_default.toString();
+                document.getElementById('submitBtn').textContent = '保存修改';
+                
+                editingAddressId = id;
+                showForm();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } catch (error) {
+                console.error('获取地址信息失败:', error);
+                showMessage('获取地址信息失败，请稍后重试', 'error');
+            }
+        }
+
+        function showAddForm() {
+            editingAddressId = null;
+            document.getElementById('form-title').textContent = '添加新地址';
+            document.getElementById('submitBtn').textContent = '保存地址';
+            clearForm();
+            document.getElementById('isDefault').value = 'true';
+            showForm();
+        }
+
+        function showForm() {
+            document.getElementById('addressForm').style.display = 'block';
+        }
+
+        function hideForm() {
+            document.getElementById('addressForm').style.display = 'none';
+        }
+
+        async function deleteAddress(id) {
+            if (confirm('确定要删除这个地址吗？删除后不可恢复')) {
+                try {
+                    const { error } = await supabase
+                       .from('addresses')
+                       .delete()
+                       .eq('id', id);
+
+                    if (error) throw error;
+                    showMessage('地址删除成功', 'success');
+                    await loadAddresses();
+                } catch (error) {
+                    console.error('删除地址失败:', error);
+                    showMessage('删除地址失败，请稍后重试', 'error');
+                }
+            }
+        }
+
+        function clearForm() {
+            document.getElementById('name').value = '';
+            document.getElementById('phone').value = '';
+            document.getElementById('region').value = '';
+            document.getElementById('detail').value = '';
+            document.getElementById('isDefault').value = 'true';
+        }
+
+        function showMessage(content, type) {
+            const messageElement = document.getElementById('message');
+            messageElement.textContent = content;
+            messageElement.className = `message ${type}`;
+            setTimeout(() => {
+                messageElement.textContent = '';
+                messageElement.className = 'message';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+#content {
+    flex: 1;
+    width: 100%;
+    border: none;
+}
+
+/* 底部导航栏样式 */
+#bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-color: #fff; /* 使用更纯净的白色背景 */
+    display: flex;
+    justify-content: space-around;
+    padding: 12px 0; /* 将垂直内边距变为原来的 3/2 */
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1); /* 增强阴影效果 */
+    border-top-left-radius: 20px; /* 添加圆角 */
+    border-top-right-radius: 20px;
+}
+
+/* 导航按钮样式 */
+#bottom-nav button {
+    background: none;
+    border: none;
+    color: #6c757d;
+    font-size: 12px; /* 适当减小字体大小 */
+    padding: 4px 8px; /* 减小内边距 */
+    border-radius: 10px;
+    min-width: 50px;
+}
+
+/* 按钮内图标样式 */
+#bottom-nav button i {
+    font-size: 24px; /* 将图标大小变为原来的 3/2 */
+    margin-bottom: 3px; /* 增大图标和文字间距 */
+}
+
+/* 激活状态按钮样式 */
+#bottom-nav button.active {
+    color: #007bff;
+    font-weight: bold;
+    background-color: #e7f3ff; /* 激活状态添加背景色 */
+}
+
+/* 悬停状态按钮样式 */
+#bottom-nav button:hover {
+    background-color: #f0f0f0;
+    transform: translateY(-3px); /* 悬停时上移效果 */
+}

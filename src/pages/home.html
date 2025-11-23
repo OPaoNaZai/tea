@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>奶茶小铺 - 点单页面</title>
+    <!-- 确保图标库正确引入 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        /* 全局样式重置与基础设置 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Microsoft YaHei', 'Heiti SC', sans-serif;
+        }
+
+        body {
+            background-color: #f9f5f0;
+            color: #333;
+            line-height: 1.6;
+            overflow-x: hidden;
+            padding-bottom: 80px; /* 为底部购物车栏预留空间 */
+        }
+
+        /* 顶部导航栏 */
+        .top-nav {
+            background-color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            gap: 1rem;
+        }
+
+        .logo { display: flex; align-items: center; gap: 0.8rem; }
+        .logo h1 { font-size: 1.5rem; color: #ff7e5f; letter-spacing: 1px; }
+        .logo i { font-size: 1.8rem; color: #ff7e5f; }
+
+        .search-container { flex: 1; max-width: 500px; position: relative; }
+        .search-input { width: 100%; padding: 0.8rem 1.2rem 0.8rem 2.8rem; border: 1px solid #ffd1c0; border-radius: 30px; font-size: 1rem; color: #333; background-color: #fef6f2; transition: all 0.3s ease; }
+        .search-input:focus { outline: none; border-color: #ff7e5f; box-shadow: 0 0 0 3px rgba(255, 126, 95, 0.1); }
+        .search-icon { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #ff7e5f; font-size: 1.1rem; }
+
+        .mode-switch { display: flex; border: 1px solid #ffd1c0; border-radius: 30px; overflow: hidden; }
+        .mode-btn { padding: 0.6rem 1.5rem; border: none; background-color: transparent; color: #ff7e5f; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; gap: 0.5rem; }
+        .mode-btn i { font-size: 1.1rem; }
+        .mode-btn.active { background-color: #ff7e5f; color: white; }
+        .mode-btn:hover:not(.active) { background-color: #fef6f2; }
+
+        /* 主内容区域 */
+        .main-content { display: flex; height: calc(100vh - 76px - 80px); }
+
+        /* 左侧分类菜单 */
+        .category-menu { width: 260px; background-color: white; box-shadow: 2px 0 10px rgba(0,0,0,0.05); padding: 1.5rem 0; position: fixed; height: calc(100vh - 76px - 80px); overflow-y: auto; z-index: 90; }
+        .category-menu h2 { color: #ff7e5f; font-size: 1.2rem; padding: 0 1.8rem 0.8rem; margin-bottom: 1rem; border-bottom: 2px solid #f9f5f0; display: flex; align-items: center; gap: 0.5rem; }
+        .category-list { list-style: none; }
+        .category-item { padding: 1.1rem 1.8rem; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; gap: 1rem; font-size: 1.05rem; }
+        .category-item i { color: #ff7e5f; font-size: 1.2rem; width: 24px; text-align: center; }
+        .category-item:hover { background-color: #fef6f2; }
+        .category-item.active { background-color: #ff7e5f; color: white; position: relative; }
+        .category-item.active::before { content: ''; position: absolute; left: 0; top: 0; height: 100%; width: 4px; background-color: #d65a31; }
+        .category-item.active i { color: white; }
+
+        /* 右侧产品列表 */
+        .product-container { margin-left: 260px; flex: 1; padding: 2rem; overflow-y: auto; }
+        .product-header { margin-bottom: 1.5rem; }
+        .product-header h2 { font-size: 1.5rem; color: #333; margin-bottom: 0.5rem; }
+        .product-header p { color: #666; font-size: 0.95rem; }
+        .search-result-tip { color: #666; font-size: 1rem; margin-bottom: 1.5rem; display: none; }
+
+        /* 产品网格布局 */
+        .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.8rem; }
+
+        /* 产品卡片优化 */
+        .product-card { background-color: white; border-radius: 12px; padding: 1.5rem; text-align: center; box-shadow: 0 3px 15px rgba(0,0,0,0.07); transition: all 0.3s ease; position: relative; overflow: hidden; cursor: pointer; }
+        .product-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, #ff7e5f, #feb47b); opacity: 0; transition: opacity 0.3s ease; }
+        .product-card:hover { transform: translateY(-8px); box-shadow: 0 10px 25px rgba(0,0,0,0.12); }
+        .product-card:hover::before { opacity: 1; }
+        .product-img { width: 100%; height: 200px; object-fit: cover; border-radius: 8px; margin-bottom: 1.2rem; transition: transform 0.5s ease; }
+        .product-card:hover .product-img { transform: scale(1.05); }
+        .product-title { font-size: 1.15rem; color: #333; margin-bottom: 0.6rem; font-weight: 600; }
+        .product-desc { color: #666; font-size: 0.9rem; margin-bottom: 1.2rem; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0 0.5rem; }
+        .product-price { color: #ff7e5f; font-size: 1.3rem; font-weight: 700; margin-bottom: 1.2rem; }
+
+        .add-to-cart { width: 100%; padding: 0.9rem 0; border: none; border-radius: 25px; background-color: #fef6f2; color: #ff7e5f; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 0.5rem; pointer-events: auto; }
+        .add-to-cart:hover { background-color: #ff7e5f; color: white; }
+        
+        .product-card > *:not(.add-to-cart) { pointer-events: none; }
+
+        /* 空状态提示 */
+        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 400px; color: #999; text-align: center; display: none; }
+        .empty-state i { font-size: 4rem; margin-bottom: 1rem; color: #ffd1c0; }
+
+        /* 滚动条美化 */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #ffc1a8; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #ff7e5f; }
+
+        /* ----------------- 购物车样式 ----------------- */
+        /* 底部购物车摘要栏 - 图1效果 */
+        .cart-summary-bar { 
+            position: fixed; 
+            bottom: 80px; 
+            left: 0; 
+            width: 100%; 
+            background-color: white; 
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1); 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 0.8rem 2rem; 
+            z-index: 95;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .cart-summary-bar.hidden {
+            transform: translateY(100%);
+            opacity: 0;
+        }
+        .cart-summary-info { 
+            display: flex; 
+            align-items: center; 
+            gap: 1rem; 
+            cursor: pointer; 
+            flex: 1;
+        }
+        .cart-summary-icon-container { position: relative; }
+        .cart-summary-icon { font-size: 1.5rem; color: #ff7e5f; }
+        .cart-summary-count { 
+            position: absolute; 
+            top: -8px; 
+            right: -8px; 
+            background-color: #ff7e5f; 
+            color: white; 
+            border-radius: 50%; 
+            width: 20px; 
+            height: 20px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 0.8rem; 
+            font-weight: bold; 
+        }
+        .cart-summary-text { 
+            font-size: 1rem; 
+            font-weight: 600; 
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .cart-summary-text span {
+            color: #ff7e5f;
+            font-weight: bold;
+        }
+        .cart-summary-total { font-size: 1.1rem; font-weight: bold; color: #ff7e5f; }
+        .cart-summary-checkout { 
+            padding: 0.6rem 1.5rem; 
+            border: none; 
+            border-radius: 30px; 
+            background-color: #ff7e5f; 
+            color: white; 
+            font-size: 1rem; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: all 0.3s ease; 
+        }
+        .cart-summary-checkout:hover { background-color: #e86a4a; transform: translateY(-2px); }
+        .cart-summary-checkout:disabled { background-color: #ccc; cursor: not-allowed; transform: none; }
+
+        /* 底部导航栏 */
+        .cart-bar { 
+            position: fixed; 
+            bottom: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 80px; 
+            background-color: white; 
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1); 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 0 2rem; 
+            z-index: 95; 
+        }
+        .cart-info { display: flex; align-items: center; gap: 1rem; cursor: pointer; }
+        .cart-icon-container { position: relative; }
+        .cart-icon { font-size: 1.8rem; color: #ff7e5f; }
+        .cart-item-count { position: absolute; top: -10px; right: -10px; background-color: #ff7e5f; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: bold; }
+        .cart-text { font-size: 1.1rem; font-weight: 600; }
+        .cart-total { font-size: 1.3rem; font-weight: bold; color: #ff7e5f; }
+        .checkout-btn { padding: 0.8rem 2rem; border: none; border-radius: 30px; background-color: #ff7e5f; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; }
+        .checkout-btn:hover { background-color: #e86a4a; transform: translateY(-2px); }
+        .checkout-btn:disabled { background-color: #ccc; cursor: not-allowed; transform: none; }
+
+        /* 购物车详情弹窗 - 图2效果 */
+        .cart-sidebar { 
+            position: fixed; 
+            bottom: 160px; 
+            right: -100%; /* 修改这里，让初始状态完全隐藏 */
+            width: 100%; /* 修改这里，宽度改为100% */
+            height: calc(100vh - 160px); 
+            background-color: white; 
+            box-shadow: -5px 0 15px rgba(0,0,0,0.1); 
+            transition: right 0.3s ease-in-out; 
+            z-index: 94; 
+            display: flex; 
+            flex-direction: column; 
+            border-radius: 12px 12px 0 0;
+        }
+        .cart-sidebar.open { right: 0; }
+        .cart-sidebar-header { 
+            padding: 1.5rem; 
+            border-bottom: 1px solid #f0f0f0; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
+        .cart-sidebar-header .select-all {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1rem;
+        }
+        .select-all-checkbox {
+            width: 18px;
+            height: 18px;
+            accent-color: #ff7e5f;
+        }
+        .cart-sidebar-title { font-size: 1.3rem; font-weight: bold; }
+        .close-cart-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666; }
+        .cart-items-list { flex: 1; overflow-y: auto; padding: 1rem; }
+        .cart-item { 
+            display: flex; 
+            align-items: center; 
+            padding: 1rem; 
+            border-bottom: 1px solid #f9f9f9; 
+            gap: 1rem; 
+        }
+        .cart-item-checkbox {
+            width: 18px;
+            height: 18px;
+            accent-color: #ff7e5f;
+        }
+        .cart-item-img { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; }
+        .cart-item-details { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+        .cart-item-name { font-weight: 600; margin-bottom: 0.3rem; }
+        .cart-item-spec { font-size: 0.85rem; color: #666; }
+        .cart-item-price { color: #ff7e5f; font-weight: bold; }
+        .cart-item-quantity { display: flex; align-items: center; gap: 0.5rem; }
+        .quantity-btn { 
+            width: 25px; 
+            height: 25px; 
+            border-radius: 50%; 
+            border: 1px solid #ddd; 
+            background-color: white; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 1rem; 
+            transition: all 0.2s ease; 
+        }
+        .quantity-btn:hover { background-color: #f0f0f0; }
+        .quantity-btn.decrease:disabled { color: #ccc; cursor: not-allowed; background-color: white; }
+        .cart-item-qty { font-weight: 600; width: 25px; text-align: center; }
+        .remove-cart-item { 
+            background: none; 
+            border: none; 
+            color: #ff7e5f; 
+            cursor: pointer; 
+            font-size: 1.2rem; 
+            opacity: 0.7; 
+            transition: all 0.2s ease; 
+        }
+        .remove-cart-item:hover { opacity: 1; transform: scale(1.1); }
+        .cart-sidebar-footer { padding: 1.5rem; border-top: 1px solid #f0f0f0; }
+        .cart-summary { display: flex; justify-content: space-between; font-size: 1.2rem; margin-bottom: 1rem; }
+        .summary-label { font-weight: 600; }
+        .summary-value { font-weight: bold; color: #ff7e5f; }
+        .cart-actions { display: flex; gap: 1rem; }
+        .clear-cart-btn, .checkout-sidebar-btn { 
+            flex: 1; 
+            padding: 0.8rem; 
+            border-radius: 8px; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: all 0.3s ease; 
+            border: none; 
+        }
+        .clear-cart-btn { background-color: #f8f8f8; color: #333; border: 1px solid #ddd; }
+        .clear-cart-btn:hover { background-color: #f0f0f0; }
+        .checkout-sidebar-btn { background-color: #ff7e5f; color: white; }
+        .checkout-sidebar-btn:hover { background-color: #e86a4a; }
+        .checkout-sidebar-btn:disabled { background-color: #ccc; cursor: not-allowed; }
+        .empty-cart-message { 
+            height: 100%; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            color: #999; 
+            text-align: center; 
+            padding: 2rem; 
+        }
+        .empty-cart-message i { font-size: 4rem; margin-bottom: 1rem; color: #ffd1c0; }
+
+        /* 响应式调整 */
+        @media (max-width: 992px) { 
+            .category-menu { width: 220px; } 
+            .product-container { margin-left: 220px; padding: 1.5rem; } 
+        }
+        @media (max-width: 768px) { 
+            .category-menu { width: 200px; } 
+            .product-container { margin-left: 200px; } 
+            .cart-bar, .cart-summary-bar { padding: 0 1rem; } 
+            /* 注释掉或删除这一行，因为它会覆盖我们的全局设置 */
+            /* .cart-sidebar { width: 320px; right: -320px; } */
+        }
+        @media (max-width: 576px) {
+            .category-menu { 
+                width: 100%; 
+                transform: translateX(-100%); 
+                transition: transform 0.3s ease; 
+                z-index: 101; 
+            }
+            .category-menu.open { transform: translateX(0); }
+            .product-container { margin-left: 0; padding-bottom: 90px; }
+            .main-content { height: calc(100vh - 70px - 80px); }
+            .mobile-menu-toggle { 
+                display: block; 
+                position: fixed; 
+                top: 15px; 
+                left: 15px; 
+                z-index: 102; 
+                background-color: white; 
+                border: none; 
+                width: 40px; 
+                height: 40px; 
+                border-radius: 50%; 
+                box-shadow: 0 2px 10px rgba(0,0,0,0.2); 
+                font-size: 1.2rem; 
+                color: #ff7e5f; 
+                cursor: pointer; 
+            }
+            .cart-bar { height: 70px; }
+            .cart-summary-bar { height: 70px; bottom: 70px; }
+            .cart-sidebar { 
+                bottom: 140px; 
+                /* width: 100%; 这个设置已经在全局样式中了 */
+                /* right: -100%; 这个设置也已经在全局样式中了 */
+                height: calc(100vh - 140px);
+            }
+            .cart-info { gap: 0.5rem; }
+            .cart-icon { font-size: 1.5rem; }
+            .cart-text { display: none; }
+            .cart-total { font-size: 1.1rem; }
+            .checkout-btn { padding: 0.6rem 1.2rem; font-size: 1rem; }
+            .cart-summary-text { font-size: 0.9rem; }
+            .cart-summary-checkout { padding: 0.5rem 1rem; font-size: 0.9rem; }
+        }
+    </style>
+</head>
+<body>
+    <!-- 移动端菜单切换按钮 -->
+    <button class="mobile-menu-toggle" style="display: none;"><i class="fa fa-bars"></i></button>
+
+    <!-- 顶部导航栏 -->
+    <div class="top-nav">
+        <div class="logo"><i class="fa fa-mug-hot"></i><h1>奶茶小铺</h1></div>
+        <div class="search-container"><i class="fa fa-search search-icon"></i><input type="text" class="search-input" placeholder="搜索产品名称（如：珍珠奶茶）"></div>
+        <div class="mode-switch">
+            <button id="takeoutBtn" class="mode-btn active"><i class="fa fa-motorcycle"></i> 外卖</button>
+            <button id="selfPickupBtn" class="mode-btn"><i class="fa fa-store"></i> 自取</button>
+        </div>
+    </div>
+
+    <!-- 主内容区域 -->
+    <div class="main-content">
+        <div class="category-menu">
+            <h2><i class="fa fa-list"></i> 产品分类</h2>
+            <ul class="category-list">
+                <li class="category-item" data-category="popular"><i class="fa fa-heart"></i><span>人气推荐</span></li>
+                <li class="category-item" data-category="new"><i class="fa fa-fire"></i><span>新品上市</span></li>
+                <li class="category-item" data-category="classic"><i class="fa fa-coffee"></i><span>经典奶茶</span></li>
+                <li class="category-item" data-category="fruit"><i class="fa fa-apple"></i><span>清爽果茶</span></li>
+                <li class="category-item" data-category="smoothie"><i class="fa fa-snowflake-o"></i><span>冰沙系列</span></li>
+                <li class="category-item" data-category="combo"><i class="fa fa-gift"></i><span>套餐组合</span></li>
+            </ul>
+        </div>
+        <div class="product-container">
+            <div class="product-header">
+                <h2>请选择分类查看产品</h2>
+                <p>点击左侧分类菜单，浏览对应产品系列</p>
+                <div class="search-result-tip" id="searchResultTip"></div>
+            </div>
+            <div class="product-grid" id="productGrid">
+                <div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #666;"><i class="fa fa-hand-point-left fa-2x mb-3"></i><p>正在加载分类数据...</p></div>
+            </div>
+            <template id="productCardTemplate">
+                <div class="product-card" data-id="[[id]]" data-name="[[name]]" data-price="[[price]]" data-image="[[image_url]]">
+                    <img src="[[image_url]]" alt="[[name]]" class="product-img">
+                    <h3 class="product-title">[[name]]</h3>
+                    <p class="product-desc">[[description]]</p>
+                    <div class="product-price">¥[[price]]</div>
+                    <button class="add-to-cart"><i class="fa fa-shopping-cart"></i> 加入购物车</button>
+                </div>
+            </template>
+            <div class="empty-state" id="emptyState"><i class="fa fa-box-open"></i><h3>该分类暂无产品</h3><p>敬请期待新品上架~</p></div>
+        </div>
+    </div>
+
+    <!-- 购物车摘要栏 - 图1效果 -->
+    <div class="cart-summary-bar hidden" id="cartSummaryBar">
+        <div class="cart-summary-info" id="cartSummaryInfo">
+            <div class="cart-summary-icon-container">
+                <i class="fa fa-shopping-cart cart-summary-icon"></i>
+                <span class="cart-summary-count" id="cartSummaryCount">0</span>
+            </div>
+            <div class="cart-summary-text">
+                <span id="cartSummaryText">2件商品</span>
+                <span>¥<span id="cartSummaryAmount">15</span></span>
+            </div>
+        </div>
+        <button class="cart-summary-checkout" id="cartSummaryCheckout">去结算</button>
+    </div>
+
+    <!-- 购物车侧边栏 - 图2效果 -->
+    <div class="cart-sidebar" id="cartSidebar">
+        <div class="cart-sidebar-header">
+            <div class="select-all">
+                <input type="checkbox" class="select-all-checkbox" id="selectAllCheckbox" checked>
+                <span>全选</span>
+            </div>
+            <button class="close-cart-btn" id="closeCartBtn"><i class="fa fa-times"></i></button>
+        </div>
+        <div class="cart-items-list" id="cartItemsList">
+            <div class="empty-cart-message" id="emptyCartMessage"><i class="fa fa-shopping-cart"></i><h3>购物车是空的</h3><p>快去挑选美味的奶茶吧！</p></div>
+        </div>
+        <div class="cart-sidebar-footer">
+            <div class="cart-summary"><span class="summary-label">总计:</span><span class="summary-value" id="cartTotalAmount">¥0.00</span></div>
+            <div class="cart-actions"><button class="clear-cart-btn" id="clearCartBtn">清空购物车</button><button class="checkout-sidebar-btn" id="checkoutSidebarBtn" disabled>去结算</button></div>
+        </div>
+    </div>
+
+    <!-- 底部购物车栏 -->
+    <div class="cart-bar">
+        <div class="cart-info" id="cartInfo"><div class="cart-icon-container"><i class="fa fa-shopping-cart cart-icon"></i><span class="cart-item-count" id="cartItemCount">0</span></div><span class="cart-text">购物车</span><span class="cart-total" id="cartBarTotal">¥0.00</span></div>
+        <button class="checkout-btn" id="checkoutBarBtn" disabled>去结算</button>
+    </div>
+
+    <script>
+        // 初始化 Supabase 客户端
+        const SUPABASE_URL = "https://gfvzqdydcjynxseiswwh.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdmdnpxZHlkY2p5bnhzZWlzd3doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NDI0MDksImV4cCI6MjA3ODMxODQwOX0.n0gaMxtldCFEw0PkH_NKyN6J_e1vKJ5s8GwsKOGq0Q0";
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // DOM 元素
+        const productGrid = document.getElementById('productGrid');
+        const productCardTemplate = document.getElementById('productCardTemplate');
+        const productHeaderTitle = document.querySelector('.product-header h2');
+        const productHeaderDesc = document.querySelector('.product-header p');
+        const categoryItems = document.querySelectorAll('.category-item');
+        const emptyState = document.getElementById('emptyState');
+        const searchResultTip = document.getElementById('searchResultTip');
+        const searchInput = document.querySelector('.search-input');
+        const cartInfo = document.getElementById('cartInfo');
+        const cartSidebar = document.getElementById('cartSidebar');
+        const closeCartBtn = document.getElementById('closeCartBtn');
+        const cartItemsList = document.getElementById('cartItemsList');
+        const cartItemCount = document.getElementById('cartItemCount');
+        const cartBarTotal = document.getElementById('cartBarTotal');
+        const cartTotalAmount = document.getElementById('cartTotalAmount');
+        const checkoutBarBtn = document.getElementById('checkoutBarBtn');
+        const checkoutSidebarBtn = document.getElementById('checkoutSidebarBtn');
+        const clearCartBtn = document.getElementById('clearCartBtn');
+        const emptyCartMessage = document.getElementById('emptyCartMessage');
+        const mobileMenuToggle = document.querySelector('.mobile-menu-toggle');
+        const categoryMenu = document.querySelector('.category-menu');
+        // 新增购物车摘要栏元素
+        const cartSummaryBar = document.getElementById('cartSummaryBar');
+        const cartSummaryInfo = document.getElementById('cartSummaryInfo');
+        const cartSummaryCount = document.getElementById('cartSummaryCount');
+        const cartSummaryText = document.getElementById('cartSummaryText');
+        const cartSummaryAmount = document.getElementById('cartSummaryAmount');
+        const cartSummaryCheckout = document.getElementById('cartSummaryCheckout');
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+
+        // 分类描述数据
+        const categoryData = {
+            'popular': { title: '人气推荐系列', desc: '共 6 款产品 · 顾客最爱，口碑之选' },
+            'new': { title: '新品上市系列', desc: '共 4 款产品 · 全新口味，抢先体验' },
+            'classic': { title: '经典奶茶系列', desc: '共 6 款产品 · 浓郁奶香，经典滋味' },
+            'fruit': { title: '清爽果茶系列', desc: '共 5 款产品 · 新鲜水果，清爽口感' },
+            'smoothie': { title: '冰沙系列', desc: '共 5 款产品 · 冰爽解暑，果香四溢' },
+            'combo': { title: '套餐组合系列', desc: '共 4 款产品 · 超值搭配，性价比高' }
+        };
+
+        let categoryIdMap = {};
+        let isCategoriesLoaded = false;
+
+        // ----------------- 购物车核心逻辑 -----------------
+        let cart = JSON.parse(localStorage.getItem('milkTeaCart')) || [];
+        const saveCart = () => localStorage.setItem('milkTeaCart', JSON.stringify(cart));
+        const calculateTotal = () => cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        const calculateItemCount = () => cart.reduce((count, item) => count + item.quantity, 0);
+
+        // 更新购物车UI
+        const updateCartUI = () => {
+            saveCart();
+            const total = calculateTotal();
+            const itemCount = calculateItemCount();
+            
+            // 更新主购物车栏
+            cartItemCount.textContent = itemCount;
+            cartBarTotal.textContent = `¥${total.toFixed(2)}`;
+            cartTotalAmount.textContent = `¥${total.toFixed(2)}`;
+            const isCartEmpty = cart.length === 0;
+            checkoutBarBtn.disabled = isCartEmpty;
+            checkoutSidebarBtn.disabled = isCartEmpty;
+            cartSummaryCheckout.disabled = isCartEmpty;
+            
+            // 更新购物车摘要栏
+            cartSummaryCount.textContent = itemCount;
+            cartSummaryAmount.textContent = total.toFixed(2);
+            cartSummaryText.textContent = `${cart.length}件商品`;
+            
+            // 控制购物车摘要栏显示/隐藏
+            if (isCartEmpty) {
+                cartSummaryBar.classList.add('hidden');
+                emptyCartMessage.style.display = 'flex';
+            } else {
+                cartSummaryBar.classList.remove('hidden');
+                emptyCartMessage.style.display = 'none';
+            }
+            
+            // 更新购物车详情列表
+            cartItemsList.innerHTML = '';
+            if (isCartEmpty) { 
+                cartItemsList.appendChild(emptyCartMessage); 
+                return; 
+            }
+            
+            cart.forEach((item, index) => {
+                const cartItemElement = document.createElement('div');
+                cartItemElement.className = 'cart-item';
+                cartItemElement.innerHTML = `
+                    <input type="checkbox" class="cart-item-checkbox" data-index="${index}" checked>
+                    <img src="${item.image}" alt="${item.name}" class="cart-item-img">
+                    <div class="cart-item-details">
+                        <div class="cart-item-name">${item.name}</div>
+                        <div class="cart-item-spec">${item.spec || '中杯,七分糖,正常冰'}</div>
+                        <div class="cart-item-price">¥${item.price.toFixed(2)}</div>
+                    </div>
+                    <div class="cart-item-quantity">
+                        <button class="quantity-btn decrease" data-index="${index}">-</button>
+                        <span class="cart-item-qty">${item.quantity}</span>
+                        <button class="quantity-btn increase" data-index="${index}">+</button>
+                    </div>
+                    <button class="remove-cart-item" data-index="${index}"><i class="fa fa-trash"></i></button>
+                `;
+                cartItemsList.appendChild(cartItemElement);
+            });
+
+            // 绑定购物车项目事件
+            document.querySelectorAll('.quantity-btn.decrease').forEach(btn => 
+                btn.addEventListener('click', (e) => adjustQuantity(parseInt(e.currentTarget.dataset.index), -1)));
+            document.querySelectorAll('.quantity-btn.increase').forEach(btn => 
+                btn.addEventListener('click', (e) => adjustQuantity(parseInt(e.currentTarget.dataset.index), 1)));
+            document.querySelectorAll('.remove-cart-item').forEach(btn => 
+                btn.addEventListener('click', (e) => removeFromCart(parseInt(e.currentTarget.dataset.index))));
+            document.querySelectorAll('.cart-item-checkbox').forEach(checkbox => 
+                checkbox.addEventListener('change', handleItemCheckboxChange));
+        };
+
+        // 处理购物车项目复选框变化
+        const handleItemCheckboxChange = () => {
+            const allChecked = document.querySelectorAll('.cart-item-checkbox:checked').length === cart.length;
+            selectAllCheckbox.checked = allChecked;
+        };
+
+        // 全选/取消全选
+        selectAllCheckbox.addEventListener('change', () => {
+            document.querySelectorAll('.cart-item-checkbox').forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+            });
+        });
+
+        // 从购物车移除项目
+        const removeFromCart = (index) => { 
+            cart.splice(index, 1); 
+            updateCartUI(); 
+        };
+
+        // 调整购物车项目数量
+        const adjustQuantity = (index, delta) => {
+            const newQuantity = cart[index].quantity + delta;
+            if (newQuantity > 0) { 
+                cart[index].quantity = newQuantity; 
+                updateCartUI(); 
+            }
+        };
+
+        // 清空购物车
+        const clearCart = () => { 
+            if(confirm('确定要清空购物车吗？')) { 
+                cart = []; 
+                updateCartUI(); 
+            } 
+        };
+
+        // 添加到购物车
+        const addToCart = (product) => {
+            // 默认添加一些规格信息，实际项目中可以从规格选择界面获取
+            const productWithSpec = {
+                ...product,
+                spec: '中杯,七分糖,正常冰(推荐)'
+            };
+            
+            const existingItemIndex = cart.findIndex(item => item.id === product.id);
+            if (existingItemIndex > -1) {
+                cart[existingItemIndex].quantity += 1;
+            } else {
+                cart.push({ ...productWithSpec, quantity: 1 });
+            }
+            
+            updateCartUI();
+            
+            // 添加购物车动画
+            const cartIcon = document.querySelector('.cart-icon');
+            cartIcon.classList.add('added-animation');
+            setTimeout(() => cartIcon.classList.remove('added-animation'), 500);
+            
+            // 显示添加成功提示
+            alert(`✅ ${product.name} 已加入购物车！`);
+            
+            // 确保购物车摘要栏显示
+            cartSummaryBar.classList.remove('hidden');
+        };
+        
+        updateCartUI(); // 初始化购物车UI
+
+        // ----------------- 产品和分类逻辑 -----------------
+        async function loadCategories() {
+            try {
+                const { data, error } = await supabase.from('categories').select('id, slug');
+                if (error) throw error;
+                data.forEach(category => categoryIdMap[category.slug] = category.id);
+                isCategoriesLoaded = true;
+                if (categoryItems.length > 0) categoryItems[0].click();
+            } catch (error) {
+                console.error('加载分类失败:', error);
+                productGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #ff7e5f;"><i class="fa fa-exclamation-circle fa-2x mb-3"></i><p>分类数据加载失败，请刷新页面重试</p></div>`;
+            }
+        }
+
+        function renderProducts(products) {
+            productGrid.innerHTML = '';
+            if (products.length === 0) { 
+                emptyState.style.display = 'flex'; 
+                return; 
+            }
+            emptyState.style.display = 'none';
+            
+            products.forEach(product => {
+                const cardClone = document.importNode(productCardTemplate.content, true);
+                const card = cardClone.querySelector('.product-card');
+                card.querySelector('.product-img').src = product.image_url;
+                card.querySelector('.product-title').textContent = product.name;
+                card.querySelector('.product-desc').textContent = product.description || '暂无描述';
+                card.querySelector('.product-price').textContent = `¥${product.price.toFixed(2)}`;
+                card.dataset.id = product.id;
+                card.dataset.name = product.name;
+                card.dataset.price = product.price;
+                card.dataset.image = product.image_url;
+
+                // 绑定加入购物车按钮事件
+                const addBtn = card.querySelector('.add-to-cart');
+                addBtn.addEventListener('click', function(e) {
+                    e.stopPropagation(); 
+                    const productData = {
+                        id: card.dataset.id,
+                        name: card.dataset.name,
+                        price: parseFloat(card.dataset.price),
+                        image: card.dataset.image
+                    };
+                    addToCart(productData);
+                });
+
+                // 卡片点击事件，用于查看详情
+                card.addEventListener('click', function() {
+                    alert(`📋 查看【${product.name}】详情\n\n规格：中杯(500ml) / 大杯(700ml)\n甜度：全糖/半糖/少糖/无糖\n冰度：正常冰/少冰/去冰/热饮\n配料：可额外添加珍珠、椰果等`);
+                });
+                
+                productGrid.appendChild(cardClone);
+            });
+        }
+
+        // 分类菜单点击事件
+        categoryItems.forEach(item => {
+            item.addEventListener('click', async function() {
+                if (!isCategoriesLoaded) { 
+                    alert('分类数据正在加载中，请稍后再试！'); 
+                    return; 
+                }
+                categoryItems.forEach(i => i.classList.remove('active'));
+                this.classList.add('active');
+                const categorySlug = this.getAttribute('data-category');
+                const currentCategoryData = categoryData[categorySlug];
+                productHeaderTitle.textContent = currentCategoryData.title;
+                productHeaderDesc.textContent = currentCategoryData.desc;
+                searchResultTip.style.display = 'none';
+                productGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #ff7e5f;"><i class="fa fa-spinner fa-spin fa-2x mb-3"></i><p>加载中...</p></div>';
+                emptyState.style.display = 'none';
+                
+                try {
+                    const categoryId = categoryIdMap[categorySlug];
+                    if (!categoryId) throw new Error(`未找到分类"${categorySlug}"对应的ID`);
+                    const { data, error } = await supabase.from('products').select('*')
+                        .eq('category_id', categoryId)
+                        .order('display_order', { ascending: true });
+                    if (error) throw error;
+                    renderProducts(data);
+                } catch (error) {
+                    console.error('加载产品失败:', error);
+                    productGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #ff7e5f;">加载失败: ${error.message}</div>`;
+                }
+                
+                document.querySelector('.product-container').scrollTop = 0;
+            });
+        });
+
+        // 搜索功能
+        if (searchInput) {
+            searchInput.addEventListener('input', async function() {
+                const searchKey = this.value.trim().toLowerCase();
+                if (!searchKey) {
+                    searchResultTip.style.display = 'none';
+                    const activeCategory = document.querySelector('.category-item.active');
+                    if (activeCategory) { 
+                        activeCategory.click(); 
+                    } else {
+                        productGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #666;"><i class="fa fa-hand-point-left fa-2x mb-3"></i><p>请从左侧选择一个分类开始浏览</p></div>';
+                        productHeaderTitle.textContent = '请选择分类查看产品';
+                        productHeaderDesc.textContent = '点击左侧分类菜单，浏览对应产品系列';
+                    }
+                    return;
+                }
+                
+                productHeaderTitle.textContent = '搜索结果';
+                productHeaderDesc.textContent = '';
+                productGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #ff7e5f;"><i class="fa fa-search fa-spin fa-2x mb-3"></i><p>搜索中...</p></div>';
+                emptyState.style.display = 'none';
+                
+                try {
+                    const { data, error } = await supabase.from('products').select('*')
+                        .ilike('name', `%${searchKey}%`)
+                        .order('display_order');
+                    if (error) throw error;
+                    renderProducts(data);
+                    searchResultTip.style.display = 'block';
+                    searchResultTip.textContent = `搜索结果：找到 ${data.length} 款相关产品`;
+                } catch (error) {
+                    console.error('搜索产品失败:', error);
+                    productGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #ff7e5f;">搜索失败: ${error.message}</div>`;
+                }
+            });
+        }
+
+        // 模式切换
+        const modeBtns = document.querySelectorAll('.mode-btn');
+        modeBtns.forEach(btn => btn.addEventListener('click', function() {
+            modeBtns.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+        }));
+
+        // 购物车相关事件绑定
+        cartInfo.addEventListener('click', () => cartSidebar.classList.add('open'));
+        closeCartBtn.addEventListener('click', () => cartSidebar.classList.remove('open'));
+        cartSummaryInfo.addEventListener('click', () => cartSidebar.classList.add('open'));
+        
+        // 结算按钮事件
+        checkoutBarBtn.addEventListener('click', () => cartSidebar.classList.add('open'));
+        checkoutSidebarBtn.addEventListener('click', () => {
+            alert(`✅ 结算成功！\n\n总计: ${cartTotalAmount.textContent}\n\n感谢您的购买！`);
+            cart = [];
+            updateCartUI();
+            cartSidebar.classList.remove('open');
+        });
+        cartSummaryCheckout.addEventListener('click', () => {
+            cartSidebar.classList.add('open');
+        });
+        
+        // 清空购物车事件
+        clearCartBtn.addEventListener('click', clearCart);
+
+        // 移动端菜单处理
+        function handleResize() {
+            if (window.innerWidth <= 576) {
+                mobileMenuToggle.style.display = 'block';
+            } else {
+                mobileMenuToggle.style.display = 'none';
+                categoryMenu.classList.remove('open');
+            }
+        }
+        window.addEventListener('resize', handleResize);
+        handleResize();
+        mobileMenuToggle.addEventListener('click', () => categoryMenu.classList.toggle('open'));
+
+        // 加入购物车动画
+        document.head.insertAdjacentHTML('beforeend', `
+        <style>
+            .cart-icon.added-animation { animation: cartBounce 0.5s ease; }
+            @keyframes cartBounce { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.3); } }
+        </style>`);
+
+        // 页面加载完成后加载分类
+        window.addEventListener('DOMContentLoaded', loadCategories);
+    </script>
+</body>
+</html>
